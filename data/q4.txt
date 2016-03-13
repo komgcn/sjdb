@@ -1,0 +1,3 @@
+SELECT projectid
+FROM  Project, Department
+WHERE dept=deptid, deptname="Research"
