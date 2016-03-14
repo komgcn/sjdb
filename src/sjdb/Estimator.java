@@ -30,64 +30,81 @@ public class Estimator implements PlanVisitor {
 
 	public void visit(Project op) {
 		
-		int value_count = 0;
+		Relation input = op.getInput().getOutput();
+		Relation output = new Relation(input.getTupleCount());
 		
-		
-		//visit the single child of a PROJECT operator
-		op.getInput().accept(this);
-		
-		//Create a relation with the size of the biggest Attribute size
-		List<Attribute> list = op.getAttributes();
-		for(Attribute a : list){
-			int att_val = a.getValueCount();
-			if( att_val > value_count){
-				value_count = att_val;
-			}
-		}
-		Relation output = new Relation(value_count);
-		
-		//Add the attributes into the output Relation
-		Iterator<Attribute> it = list.iterator();
-		while(it.hasNext()){
-			output.addAttribute(new Attribute(it.next()));
+		//Add project attributes contain in input's attributes to output relation
+		Iterator<Attribute> iter = op.getAttributes().iterator();
+		while (iter.hasNext()) {
+			output.addAttribute(new Attribute(input.getAttribute(iter.next())));
 		}
 		
 		op.setOutput(output);
-		
 	}
 	
 	public void visit(Select op) {
 		
-		Attribute l_att,r_att;
-		int l_val,r_val;
-		Relation output = null;
-		
-		op.getInput().accept(this);
-		
+		Relation input = op.getInput().getOutput();
 		Predicate pred = op.getPredicate();
+		Attribute left = pred.getLeftAttribute();
+		Relation output;
+		
+		//in attr=val form
 		if(pred.equalsValue()){
-			l_att = new Attribute(pred.getLeftAttribute().getName(), 1);
-			output = new Relation(1);
-			output.addAttribute(l_att);
-		}else{
-			l_att = new Attribute(pred.getLeftAttribute());
-			r_att = new Attribute(pred.getRightAttribute());
-			l_val = l_att.getValueCount();
-			r_val = r_att.getValueCount();
-			if(l_val < r_val){
-				output = new Relation(l_val);
-			}else{
-				output = new Relation(r_val);
+			
+			// T(R)/V(R,A)
+			output = new Relation(input.getTupleCount()/input.getAttribute(left).getValueCount());
+			
+			// V(R',A)=1, other's kept same(smaller than T(R')
+			for(Attribute a : input.getAttributes()){
+				if(a.equals(left)){
+					output.addAttribute(new Attribute(a.getName(),1));
+				}else{
+					output.addAttribute(new Attribute(a));
+				}
 			}
-			output.addAttribute(l_att);
+			
+		//in attr=attr form	
+		}else{
+			Attribute right = pred.getRightAttribute();
+			int left_val = input.getAttribute(left).getValueCount();
+			int right_val = input.getAttribute(right).getValueCount();
+			
+			// T(R)/max( V(R,A), V(R,B) )
+			// if a is bigger
+			if(left_val > right_val){
+				output = new Relation(input.getTupleCount()/left_val);
+				
+				//V(R',A) = V(R',B) = min( V(R,A), V(R,B) )
+				for(Attribute a : input.getAttributes()){
+					if(a.equals(left) || a.equals(right)){
+						output.addAttribute(new Attribute(a.getName(),right_val));
+					}else{
+						output.addAttribute(new Attribute(a));
+					}
+				}
+			// if b is bigger	
+			}else{
+				output = new Relation(input.getTupleCount()/right_val);
+				
+				//V(R',A) = V(R',B) = min( V(R,A), V(R,B) )
+				for(Attribute a : input.getAttributes()){
+					if(a.equals(left) || a.equals(right)){
+						output.addAttribute(new Attribute(a.getName(),left_val));
+					}else{
+						output.addAttribute(new Attribute(a));
+					}
+				}
+			}
 		}
 		
 		op.setOutput(output);
 	}
 	
 	public void visit(Product op) {
-		Relation left_input = ((Scan) op.getLeft()).getRelation();
-		Relation right_input = ((Scan) op.getRight()).getRelation();
+		
+		Relation left_input = op.getLeft().getOutput();
+		Relation right_input = op.getRight().getOutput();
 		Relation output = new Relation(left_input.getTupleCount() * right_input.getTupleCount());
 		
 		List<Attribute> left_list = left_input.getAttributes();
@@ -104,6 +121,52 @@ public class Estimator implements PlanVisitor {
 	}
 	
 	public void visit(Join op) {
-		Relation left_relation = op.getLeft().getOutput();
+		
+		Relation left_input = op.getLeft().getOutput();
+		Relation right_input = op.getRight().getOutput();
+		Predicate pred = op.getPredicate();
+		Attribute left = pred.getLeftAttribute();
+		Attribute right = pred.getRightAttribute();
+		int left_val = left_input.getAttribute(left).getValueCount();
+		int right_val = right_input.getAttribute(right).getValueCount();
+		List<Attribute> left_list = left_input.getAttributes();
+		List<Attribute> right_list = right_input.getAttributes();
+		Relation output;
+		
+		if(left_val > right_val){
+			output = new Relation((left_input.getTupleCount()*right_input.getTupleCount())/left_val);
+			for(Attribute a : left_list){
+				if(a.equals(left)){
+					output.addAttribute(new Attribute(a.getName(),right_val));
+				}else{
+					output.addAttribute(new Attribute(a));
+				}
+			}
+			for(Attribute b : right_list){
+				if(b.equals(right)){
+					output.addAttribute(new Attribute(b.getName(),right_val));
+				}else{
+					output.addAttribute(new Attribute(b));
+				}
+			}
+		}else{
+			output = new Relation((left_input.getTupleCount()*right_input.getTupleCount())/right_val);
+			for(Attribute a : left_list){
+				if(a.equals(left)){
+					output.addAttribute(new Attribute(a.getName(),left_val));
+				}else{
+					output.addAttribute(new Attribute(a));
+				}
+			}
+			for(Attribute b : right_list){
+				if(b.equals(right)){
+					output.addAttribute(new Attribute(b.getName(),left_val));
+				}else{
+					output.addAttribute(new Attribute(b));
+				}
+			}
+		}
+		
+		op.setOutput(output);
 	}
 }
