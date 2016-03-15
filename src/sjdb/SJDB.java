@@ -31,10 +31,10 @@ public class SJDB {
 		plan.accept(est);
 		
 		// create optimised plan
-		//Optimiser opt = new Optimiser(cat);
-		//Operator optPlan = opt.optimise(plan);
+		Optimiser opt = new Optimiser(cat);
+		Operator optPlan = opt.optimise(plan);
 		
-		//System.out.println(optPlan.toString());
+		System.out.println(optPlan.toString());
 	}
 
 }
